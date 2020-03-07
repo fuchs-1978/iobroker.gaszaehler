@@ -1,0 +1,97 @@
+var time_bhkw_new;
+var time_bhkw_old;
+var time_gesamt_new; 
+var time_gesamt_old;
+var zustandszahl=0.9636;
+var brennwert=9.896;
+var zeitdifferenz_bhkw;
+var zeitdifferenz_gesamt;
+var zeitalt;
+var p_bhkw;
+var p_gesamt;
+var timer_gesamt;
+var timer_bhkw;
+var loggen =false;
+
+createAllStates();
+zeitalt = new Date();
+
+schedule("*/2 * * * *", function () {
+    stopbhkw();
+    stopges();
+});
+
+on ({id: "statistics.0.temp.sumCount.sonoff.0.Gaszaehler.POWER1.year", change: "ne"}, function (obj) {
+    messen_gesamt ();
+    });
+    
+on ({id: "statistics.0.temp.sumCount.sonoff.0.Gaszaehler.POWER2.year", change: "ne"}, function (obj) {
+    messen_bhkw ();
+    }
+    );
+    
+function stopbhkw () {
+    var zeittemp = new Date();
+    if ((zeittemp - time_bhkw_old)>180000) {
+        setState("javascript.0.Gas.Leistung_BHKW",0);
+        setState("javascript.0.Gas.eta_BHKW",0);
+    }
+}
+
+function stopges () {
+    var zeittemp = new Date();
+    if ((zeittemp - time_gesamt_old)>180000) {
+     	setState("javascript.0.Gas.Leistung_Gesamt",0);
+    }
+}
+
+
+
+function messen_bhkw () {
+    time_bhkw_old = time_bhkw_new;
+    time_bhkw_new = new Date();
+    zeitdifferenz_bhkw = time_bhkw_new-time_bhkw_old;
+    p_bhkw=(0.01*brennwert*zustandszahl)/(zeitdifferenz_bhkw/(60*60*1000));
+    p_bhkw=Math.round(p_bhkw*100)/100;
+    if (loggen) {log("Leistung BHKW: " + p_bhkw)};
+    if ((isNaN(p_bhkw)) || (p_bhkw>6)) {
+            if (loggen) {log("Erster Messwert BHKW oder Messwert zu groß")};
+        } else {
+            setState("javascript.0.Gas.Leistung_BHKW",p_bhkw);
+            setState("javascript.0.Gas.eta_BHKW",getState("knx.0.Zähler.BHKW.Leistung_Strom"/*Leistung Strom*/).val/p_bhkw/10);
+        }
+}
+
+function messen_gesamt () {
+    time_gesamt_old = time_gesamt_new;
+    time_gesamt_new = new Date();
+    zeitdifferenz_gesamt = time_gesamt_new-time_gesamt_old;
+    p_gesamt=(0.01*brennwert*zustandszahl)/(zeitdifferenz_gesamt/(60*60*1000));
+    p_gesamt=Math.round(p_gesamt*100)/100;
+    if (loggen) {log("Leistung Gesamt: " + p_gesamt)};
+    if ((isNaN(p_gesamt)) || (p_gesamt>40)) {
+            if (loggen) {log("Erster Messwert Gesamt oder Messwert zu groß")};
+        } else {
+            setState("javascript.0.Gas.Leistung_Gesamt",p_gesamt);
+        }
+}
+function createAllStates(){
+    createState("Gas.Leistung_BHKW", 0, {
+        name: 'Leistung BHKW',
+        desc: 'Leistung BHKW',
+        type: 'number',
+        role: 'value',
+    });
+    createState("Gas.Leistung_Gesamt", 0, {
+        name: 'Leistung Gesamt',
+        desc: 'Leistung Gesamt',
+        type: 'number',
+        role: 'value',
+    });
+    createState("Gas.eta_BHKW", 0, {
+        name: 'Wirkungsgrad BHKW',
+        desc: 'Wirkungsgrad BHKW',
+        type: 'number',
+        role: 'value',
+    });
+    }
